@@ -146,7 +146,7 @@ class ImageMD5ModifierGUI:
         
         author_label = tk.Label(
             author_frame,
-            text="作者：俗气至顶 | 微信：Zi_ming1020 | 欢迎反馈",
+            text="作者：小杨 | 微信：Zi_ming1020 | 欢迎反馈",
             font=("微软雅黑", 8),
             fg="#666",
             bg="#f0f0f0"
