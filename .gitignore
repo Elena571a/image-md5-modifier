@@ -1,0 +1,13 @@
+# 上传和输出目录
+uploads/
+outputs/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 临时文件
+*.tmp
+*.log
+

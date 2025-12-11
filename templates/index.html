@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片MD5修改工具 - Web版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            background: #f8f9ff;
+            transition: all 0.3s;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+        
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e8ebff;
+            transform: scale(1.02);
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: #999;
+            font-size: 12px;
+        }
+        
+        #fileInput {
+            display: none;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .progress {
+            display: none;
+            margin-top: 20px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s;
+            animation: progress-animation 2s infinite;
+        }
+        
+        @keyframes progress-animation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .results {
+            display: none;
+            margin-top: 30px;
+        }
+        
+        .result-header {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .result-item {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .file-info {
+            flex: 1;
+        }
+        
+        .file-name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .file-details {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .file-md5 {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #667eea;
+            word-break: break-all;
+        }
+        
+        .download-btn {
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+        
+        .download-btn:hover {
+            background: #764ba2;
+        }
+        
+        .download-all {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .download-all-btn {
+            padding: 12px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖼️ 图片MD5修改工具</h1>
+        <p class="subtitle">生成多个不同MD5值的图片版本，绕过图片去重检测</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <div class="upload-icon">📁</div>
+            <div class="upload-text">点击或拖拽图片到这里</div>
+            <div class="upload-hint">支持 JPG, PNG, GIF, BMP 格式，最大 16MB</div>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+        
+        <div class="form-group">
+            <label for="numVersions">生成数量：</label>
+            <input type="number" id="numVersions" value="3" min="1" max="100">
+        </div>
+        
+        <button class="btn" id="processBtn" onclick="processImage()">开始处理</button>
+        
+        <div class="progress" id="progress">
+            <div class="progress-bar">
+                <div class="progress-fill"></div>
+            </div>
+            <p style="text-align: center; margin-top: 10px; color: #666;">处理中，请稍候...</p>
+        </div>
+        
+        <div class="error" id="errorMsg"></div>
+        <div class="success" id="successMsg"></div>
+        
+        <div class="results" id="results">
+            <div class="result-header">
+                <h3>处理结果</h3>
+                <p style="margin-top: 5px; color: #666; font-size: 14px;">
+                    原始MD5: <span id="originalMD5" style="font-family: monospace;"></span>
+                </p>
+            </div>
+            <div id="fileList"></div>
+            <div class="download-all">
+                <a href="#" class="download-all-btn" id="downloadAllBtn" onclick="downloadAll(event)">📦 下载全部 (ZIP)</a>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const processBtn = document.getElementById('processBtn');
+        const progress = document.getElementById('progress');
+        const results = document.getElementById('results');
+        const errorMsg = document.getElementById('errorMsg');
+        const successMsg = document.getElementById('successMsg');
+        const fileList = document.getElementById('fileList');
+        let currentOutputDir = '';
+        let zipUrl = '';
+        
+        // 点击上传区域
+        uploadArea.addEventListener('click', () => fileInput.click());
+        
+        // 文件选择
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                showSuccess('已选择文件: ' + e.target.files[0].name);
+            }
+        });
+        
+        // 拖拽上传
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                showSuccess('已选择文件: ' + e.dataTransfer.files[0].name);
+            }
+        });
+        
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.style.display = 'block';
+            successMsg.style.display = 'none';
+        }
+        
+        function showSuccess(msg) {
+            successMsg.textContent = msg;
+            successMsg.style.display = 'block';
+            errorMsg.style.display = 'none';
+        }
+        
+        function hideMessages() {
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+        }
+        
+        async function processImage() {
+            const file = fileInput.files[0];
+            if (!file) {
+                showError('请先选择图片文件！');
+                return;
+            }
+            
+            const numVersions = parseInt(document.getElementById('numVersions').value) || 3;
+            if (numVersions < 1 || numVersions > 100) {
+                showError('生成数量必须在1-100之间！');
+                return;
+            }
+            
+            // 显示进度
+            hideMessages();
+            results.style.display = 'none';
+            progress.style.display = 'block';
+            processBtn.disabled = true;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('num_versions', numVersions);
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    showError(data.error);
+                    progress.style.display = 'none';
+                    processBtn.disabled = false;
+                    return;
+                }
+                
+                // 显示结果
+                progress.style.display = 'none';
+                processBtn.disabled = false;
+                showSuccess('处理完成！');
+                
+                document.getElementById('originalMD5').textContent = data.original_md5;
+                currentOutputDir = data.output_dir;
+                zipUrl = data.zip_url;
+                
+                fileList.innerHTML = '';
+                data.output_files.forEach((file, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'result-item';
+                    item.innerHTML = `
+                        <div class="file-info">
+                            <div class="file-name">${file.filename}</div>
+                            <div class="file-details">
+                                大小: ${(file.size / 1024).toFixed(2)} KB
+                            </div>
+                            <div class="file-md5">MD5: ${file.md5}</div>
+                        </div>
+                        <a href="${file.url}" class="download-btn" download>下载</a>
+                    `;
+                    fileList.appendChild(item);
+                });
+                
+                results.style.display = 'block';
+                
+            } catch (error) {
+                showError('处理失败: ' + error.message);
+                progress.style.display = 'none';
+                processBtn.disabled = false;
+            }
+        }
+        
+        function downloadAll(e) {
+            e.preventDefault();
+            if (zipUrl) {
+                window.location.href = zipUrl;
+            }
+        }
+    </script>
+</body>
+</html>
+
