@@ -133,7 +133,7 @@ if __name__ == '__main__':
     # 支持环境变量PORT（用于云端部署），默认5001
     port = int(os.environ.get('PORT', 5001))
     # 云端部署时关闭debug模式
-    debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     print(f"\n服务器启动在端口 {port}")
     print(f"访问地址: http://localhost:{port}\n")
     app.run(debug=debug_mode, host='0.0.0.0', port=port)
