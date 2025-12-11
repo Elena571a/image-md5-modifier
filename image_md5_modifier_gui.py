@@ -25,7 +25,7 @@ class ImageMD5ModifierGUI:
             pass
         
         # 变量
-        self.input_file = tk.StringVar()
+        self.input_files = []  # 改为列表存储多个文件
         self.output_dir = tk.StringVar()
         self.num_versions = tk.IntVar(value=3)
         self.is_processing = False
@@ -46,22 +46,47 @@ class ImageMD5ModifierGUI:
         input_frame = tk.Frame(self.root, pady=10)
         input_frame.pack(fill=tk.X, padx=20)
         
-        tk.Label(input_frame, text="选择图片:", font=("微软雅黑", 10)).pack(anchor=tk.W)
+        tk.Label(input_frame, text="选择图片 (可多选):", font=("微软雅黑", 10)).pack(anchor=tk.W)
         
         file_frame = tk.Frame(input_frame)
         file_frame.pack(fill=tk.X, pady=5)
         
-        self.file_entry = tk.Entry(file_frame, textvariable=self.input_file, font=("微软雅黑", 9))
-        self.file_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, ipady=5)
+        # 使用Listbox显示多个文件
+        listbox_frame = tk.Frame(file_frame)
+        listbox_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        scrollbar = tk.Scrollbar(listbox_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        self.file_listbox = tk.Listbox(
+            listbox_frame,
+            font=("微软雅黑", 9),
+            height=3,
+            yscrollcommand=scrollbar.set
+        )
+        self.file_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.config(command=self.file_listbox.yview)
+        
+        btn_frame = tk.Frame(file_frame)
+        btn_frame.pack(side=tk.RIGHT, padx=(5, 0))
         
         browse_btn = tk.Button(
-            file_frame, 
+            btn_frame, 
             text="浏览...", 
-            command=self.browse_file,
+            command=self.browse_files,
             font=("微软雅黑", 9),
             width=10
         )
-        browse_btn.pack(side=tk.RIGHT, padx=(5, 0))
+        browse_btn.pack(pady=2)
+        
+        clear_btn = tk.Button(
+            btn_frame,
+            text="清空",
+            command=self.clear_files,
+            font=("微软雅黑", 9),
+            width=10
+        )
+        clear_btn.pack(pady=2)
         
         # 输出目录选择
         output_frame = tk.Frame(self.root, pady=10)
@@ -179,10 +204,10 @@ class ImageMD5ModifierGUI:
         sys.stdout = TextRedirector(self.log_text, self.root)
         sys.stderr = TextRedirector(self.log_text, self.root)
         
-    def browse_file(self):
-        """浏览选择图片文件"""
-        filename = filedialog.askopenfilename(
-            title="选择图片文件",
+    def browse_files(self):
+        """浏览选择多个图片文件"""
+        filenames = filedialog.askopenfilenames(
+            title="选择图片文件（可多选）",
             filetypes=[
                 ("图片文件", "*.jpg *.jpeg *.png *.bmp *.gif"),
                 ("JPEG文件", "*.jpg *.jpeg"),
@@ -190,8 +215,16 @@ class ImageMD5ModifierGUI:
                 ("所有文件", "*.*")
             ]
         )
-        if filename:
-            self.input_file.set(filename)
+        if filenames:
+            for filename in filenames:
+                if filename not in self.input_files:
+                    self.input_files.append(filename)
+                    self.file_listbox.insert(tk.END, os.path.basename(filename))
+    
+    def clear_files(self):
+        """清空已选择的文件"""
+        self.input_files.clear()
+        self.file_listbox.delete(0, tk.END)
             
     def browse_directory(self):
         """浏览选择输出目录"""
@@ -205,14 +238,15 @@ class ImageMD5ModifierGUI:
             messagebox.showwarning("警告", "正在处理中，请稍候...")
             return
             
-        input_path = self.input_file.get().strip()
-        if not input_path:
-            messagebox.showerror("错误", "请选择输入图片文件！")
+        if not self.input_files:
+            messagebox.showerror("错误", "请选择至少一个图片文件！")
             return
-            
-        if not os.path.exists(input_path):
-            messagebox.showerror("错误", "输入文件不存在！")
-            return
+        
+        # 验证所有文件是否存在
+        for file_path in self.input_files:
+            if not os.path.exists(file_path):
+                messagebox.showerror("错误", f"文件不存在: {os.path.basename(file_path)}")
+                return
             
         output_path = self.output_dir.get().strip() or None
         num_versions = self.num_versions.get()
@@ -229,20 +263,35 @@ class ImageMD5ModifierGUI:
         self.progress.start()
         
         thread = threading.Thread(
-            target=self.process_image_thread,
-            args=(input_path, output_path, num_versions),
+            target=self.process_images_thread,
+            args=(self.input_files.copy(), output_path, num_versions),
             daemon=True
         )
         thread.start()
         
-    def process_image_thread(self, input_path, output_path, num_versions):
-        """在后台线程中处理图片"""
+    def process_images_thread(self, input_files, output_path, num_versions):
+        """在后台线程中处理多个图片"""
         try:
-            # 调用处理函数
-            process_image(input_path, output_path, num_versions)
+            total = len(input_files)
+            success_count = 0
+            failed_files = []
+            
+            for i, input_path in enumerate(input_files, 1):
+                try:
+                    print(f"\n[{i}/{total}] 正在处理: {os.path.basename(input_path)}")
+                    process_image(input_path, output_path, num_versions)
+                    success_count += 1
+                    print(f"✓ 完成: {os.path.basename(input_path)}")
+                except Exception as e:
+                    failed_files.append((os.path.basename(input_path), str(e)))
+                    print(f"✗ 失败: {os.path.basename(input_path)} - {str(e)}")
             
             # 处理完成
-            self.root.after(0, self.processing_complete, True, "处理完成！")
+            if failed_files:
+                msg = f"处理完成！成功: {success_count}/{total}\n失败的文件:\n" + "\n".join([f"  - {f[0]}: {f[1]}" for f in failed_files])
+            else:
+                msg = f"处理完成！成功处理 {success_count} 个文件。"
+            self.root.after(0, self.processing_complete, True, msg)
         except Exception as e:
             import traceback
             error_msg = f"处理出错: {str(e)}\n{traceback.format_exc()}"

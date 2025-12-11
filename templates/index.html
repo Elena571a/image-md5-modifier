@@ -288,9 +288,9 @@
         
         <div class="upload-area" id="uploadArea">
             <div class="upload-icon">📁</div>
-            <div class="upload-text">点击或拖拽图片到这里</div>
-            <div class="upload-hint">支持 JPG, PNG, GIF, BMP 格式，最大 16MB</div>
-            <input type="file" id="fileInput" accept="image/*">
+            <div class="upload-text">点击或拖拽图片到这里（可多选）</div>
+            <div class="upload-hint">支持 JPG, PNG, GIF, BMP 格式，最大 16MB，可同时选择多个文件</div>
+            <input type="file" id="fileInput" accept="image/*" multiple>
         </div>
         
         <div class="form-group">
@@ -347,7 +347,11 @@
         // 文件选择
         fileInput.addEventListener('change', (e) => {
             if (e.target.files.length > 0) {
-                showSuccess('已选择文件: ' + e.target.files[0].name);
+                if (e.target.files.length === 1) {
+                    showSuccess('已选择文件: ' + e.target.files[0].name);
+                } else {
+                    showSuccess(`已选择 ${e.target.files.length} 个文件`);
+                }
             }
         });
         
@@ -365,8 +369,18 @@
             e.preventDefault();
             uploadArea.classList.remove('dragover');
             if (e.dataTransfer.files.length > 0) {
-                fileInput.files = e.dataTransfer.files;
-                showSuccess('已选择文件: ' + e.dataTransfer.files[0].name);
+                // 创建新的FileList
+                const dataTransfer = new DataTransfer();
+                for (let file of e.dataTransfer.files) {
+                    dataTransfer.items.add(file);
+                }
+                fileInput.files = dataTransfer.files;
+                
+                if (e.dataTransfer.files.length === 1) {
+                    showSuccess('已选择文件: ' + e.dataTransfer.files[0].name);
+                } else {
+                    showSuccess(`已选择 ${e.dataTransfer.files.length} 个文件`);
+                }
             }
         });
         
@@ -388,8 +402,8 @@
         }
         
         async function processImage() {
-            const file = fileInput.files[0];
-            if (!file) {
+            const files = fileInput.files;
+            if (files.length === 0) {
                 showError('请先选择图片文件！');
                 return;
             }
@@ -406,52 +420,127 @@
             progress.style.display = 'block';
             processBtn.disabled = true;
             
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('num_versions', numVersions);
-            
             try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
+                const allResults = [];
+                let totalSuccess = 0;
+                let totalFailed = 0;
                 
-                const data = await response.json();
-                
-                if (data.error) {
-                    showError(data.error);
-                    progress.style.display = 'none';
-                    processBtn.disabled = false;
-                    return;
+                // 逐个处理文件
+                for (let i = 0; i < files.length; i++) {
+                    const file = files[i];
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('num_versions', numVersions);
+                    
+                    try {
+                        const response = await fetch('/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.error) {
+                            allResults.push({
+                                filename: file.name,
+                                error: data.error,
+                                success: false
+                            });
+                            totalFailed++;
+                        } else {
+                            allResults.push({
+                                filename: file.name,
+                                data: data,
+                                success: true
+                            });
+                            totalSuccess++;
+                        }
+                    } catch (error) {
+                        allResults.push({
+                            filename: file.name,
+                            error: error.message,
+                            success: false
+                        });
+                        totalFailed++;
+                    }
                 }
                 
                 // 显示结果
                 progress.style.display = 'none';
                 processBtn.disabled = false;
-                showSuccess('处理完成！');
                 
-                document.getElementById('originalMD5').textContent = data.original_md5;
-                currentOutputDir = data.output_dir;
-                zipUrl = data.zip_url;
+                if (totalSuccess > 0) {
+                    showSuccess(`处理完成！成功: ${totalSuccess}，失败: ${totalFailed}`);
+                } else {
+                    showError('所有文件处理失败！');
+                }
                 
+                // 显示所有结果
                 fileList.innerHTML = '';
-                data.output_files.forEach((file, index) => {
-                    const item = document.createElement('div');
-                    item.className = 'result-item';
-                    item.innerHTML = `
-                        <div class="file-info">
-                            <div class="file-name">${file.filename}</div>
-                            <div class="file-details">
-                                大小: ${(file.size / 1024).toFixed(2)} KB
+                allResults.forEach((result) => {
+                    if (result.success && result.data) {
+                        // 显示原始文件信息
+                        const headerItem = document.createElement('div');
+                        headerItem.className = 'result-item';
+                        headerItem.style.background = '#e8f5e9';
+                        headerItem.innerHTML = `
+                            <div class="file-info">
+                                <div class="file-name">📁 ${result.filename}</div>
+                                <div class="file-details">
+                                    原始MD5: <span style="font-family: monospace;">${result.data.original_md5}</span>
+                                </div>
                             </div>
-                            <div class="file-md5">MD5: ${file.md5}</div>
-                        </div>
-                        <a href="${file.url}" class="download-btn" download>下载</a>
-                    `;
-                    fileList.appendChild(item);
+                        `;
+                        fileList.appendChild(headerItem);
+                        
+                        // 显示生成的版本
+                        result.data.output_files.forEach((file) => {
+                            const item = document.createElement('div');
+                            item.className = 'result-item';
+                            item.innerHTML = `
+                                <div class="file-info">
+                                    <div class="file-name">${file.filename}</div>
+                                    <div class="file-details">
+                                        大小: ${(file.size / 1024).toFixed(2)} KB
+                                    </div>
+                                    <div class="file-md5">MD5: ${file.md5}</div>
+                                </div>
+                                <a href="${file.url}" class="download-btn" download>下载</a>
+                            `;
+                            fileList.appendChild(item);
+                        });
+                        
+                        // 添加ZIP下载按钮
+                        if (result.data.zip_url) {
+                            const zipItem = document.createElement('div');
+                            zipItem.className = 'result-item';
+                            zipItem.style.background = '#fff3e0';
+                            zipItem.innerHTML = `
+                                <div class="file-info">
+                                    <div class="file-name">📦 ${result.filename} - 全部版本</div>
+                                </div>
+                                <a href="${result.data.zip_url}" class="download-btn" download>下载ZIP</a>
+                            `;
+                            fileList.appendChild(zipItem);
+                        }
+                    } else {
+                        // 显示错误信息
+                        const errorItem = document.createElement('div');
+                        errorItem.className = 'result-item';
+                        errorItem.style.background = '#ffebee';
+                        errorItem.innerHTML = `
+                            <div class="file-info">
+                                <div class="file-name" style="color: #c33;">❌ ${result.filename}</div>
+                                <div class="file-details" style="color: #c33;">错误: ${result.error}</div>
+                            </div>
+                        `;
+                        fileList.appendChild(errorItem);
+                    }
                 });
                 
-                results.style.display = 'block';
+                if (totalSuccess > 0) {
+                    results.style.display = 'block';
+                }
                 
             } catch (error) {
                 showError('处理失败: ' + error.message);
