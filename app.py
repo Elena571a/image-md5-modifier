@@ -4,10 +4,8 @@
 
 import os
 import hashlib
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
-import zipfile
-import tempfile
 from image_md5_modifier import process_image
 
 app = Flask(__name__, template_folder='templates')
@@ -59,74 +57,64 @@ def upload_file():
         if num_versions < 1 or num_versions > 100:
             num_versions = 3
         
-        output_dir = os.path.join(app.config['OUTPUT_FOLDER'], filename.rsplit('.', 1)[0])
+        # 所有文件都放在统一的输出文件夹
+        output_dir = os.path.join(app.config['OUTPUT_FOLDER'], 'all')
         os.makedirs(output_dir, exist_ok=True)
         
         process_image(upload_path, output_dir, num_versions)
         
-        output_files = []
+        # 统计生成的文件数量
         base_name = filename.rsplit('.', 1)[0]
         file_ext = '.' + filename.rsplit('.', 1)[1] if '.' in filename else '.jpg'
         
+        generated_count = 0
         for i in range(1, num_versions + 1):
             output_filename = f"{base_name}_v{i:02d}{file_ext}"
             output_path = os.path.join(output_dir, output_filename)
             if os.path.exists(output_path):
-                file_size = os.path.getsize(output_path)
-                file_md5 = calculate_md5(output_path)
-                output_files.append({
-                    'filename': output_filename,
-                    'size': file_size,
-                    'md5': file_md5,
-                    'url': f'/download/{base_name}/{output_filename}'
-                })
+                generated_count += 1
         
         original_md5 = calculate_md5(upload_path)
         
         return jsonify({
             'success': True,
-            'original_md5': original_md5,
-            'output_files': output_files,
-            'output_dir': base_name,
-            'zip_url': f'/download_zip/{base_name}'
+            'filename': filename,
+            'generated_count': generated_count,
+            'total_files': num_versions
         })
     
     except Exception as e:
         return jsonify({'error': f'处理失败: {str(e)}'}), 500
 
 
-@app.route('/download/<path:dirname>/<filename>')
-def download_file(dirname, filename):
-    directory = os.path.join(app.config['OUTPUT_FOLDER'], dirname)
+@app.route('/download_all')
+def download_all():
+    """下载所有生成的文件"""
+    output_dir = os.path.join(app.config['OUTPUT_FOLDER'], 'all')
+    if not os.path.exists(output_dir):
+        return jsonify({'error': '没有生成的文件'}), 404
+    
+    # 获取所有文件
+    files = []
+    for filename in os.listdir(output_dir):
+        file_path = os.path.join(output_dir, filename)
+        if os.path.isfile(file_path):
+            files.append({
+                'filename': filename,
+                'url': f'/download_file/{filename}'
+            })
+    
+    return jsonify({
+        'files': files,
+        'count': len(files)
+    })
+
+
+@app.route('/download_file/<filename>')
+def download_file(filename):
+    """下载单个文件"""
+    directory = os.path.join(app.config['OUTPUT_FOLDER'], 'all')
     return send_from_directory(directory, filename)
-
-
-@app.route('/download_zip/<path:dirname>')
-def download_zip(dirname):
-    directory = os.path.join(app.config['OUTPUT_FOLDER'], dirname)
-    if not os.path.exists(directory):
-        return jsonify({'error': '目录不存在'}), 404
-    
-    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
-    temp_zip.close()
-    
-    try:
-        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(directory):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    arcname = os.path.relpath(file_path, directory)
-                    zipf.write(file_path, arcname)
-        
-        return send_file(
-            temp_zip.name,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name=f'{dirname}_images.zip'
-        )
-    finally:
-        if os.path.exists(temp_zip.name):
-            os.unlink(temp_zip.name)
 
 
 if __name__ == '__main__':

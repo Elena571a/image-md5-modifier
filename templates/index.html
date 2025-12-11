@@ -170,60 +170,23 @@
             margin-top: 30px;
         }
         
-        .result-header {
+        .result-summary {
             background: #f8f9ff;
-            padding: 15px;
+            padding: 20px;
             border-radius: 10px;
+            text-align: center;
             margin-bottom: 20px;
         }
         
-        .result-item {
-            background: #f8f9ff;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .file-info {
-            flex: 1;
-        }
-        
-        .file-name {
-            font-weight: bold;
+        .result-summary h3 {
             color: #333;
-            margin-bottom: 5px;
+            margin-bottom: 15px;
         }
         
-        .file-details {
-            font-size: 12px;
+        .result-stats {
             color: #666;
-        }
-        
-        .file-md5 {
-            font-family: 'Courier New', monospace;
-            font-size: 11px;
-            color: #667eea;
-            word-break: break-all;
-        }
-        
-        .download-btn {
-            padding: 8px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
             font-size: 14px;
-            transition: background 0.3s;
-        }
-        
-        .download-btn:hover {
-            background: #764ba2;
+            margin-bottom: 20px;
         }
         
         .download-all {
@@ -232,16 +195,22 @@
         }
         
         .download-all-btn {
-            padding: 12px 40px;
+            padding: 15px 50px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
-            font-size: 16px;
+            font-size: 18px;
             font-weight: bold;
             text-decoration: none;
             display: inline-block;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .download-all-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
         }
         
         .error {
@@ -311,15 +280,12 @@
         <div class="success" id="successMsg"></div>
         
         <div class="results" id="results">
-            <div class="result-header">
-                <h3>处理结果</h3>
-                <p style="margin-top: 5px; color: #666; font-size: 14px;">
-                    原始MD5: <span id="originalMD5" style="font-family: monospace;"></span>
-                </p>
-            </div>
-            <div id="fileList"></div>
-            <div class="download-all">
-                <a href="#" class="download-all-btn" id="downloadAllBtn" onclick="downloadAll(event)">📦 下载全部 (ZIP)</a>
+            <div class="result-summary">
+                <h3>✅ 处理完成</h3>
+                <div class="result-stats" id="resultStats"></div>
+                <div class="download-all">
+                    <button class="download-all-btn" id="downloadAllBtn" onclick="downloadAll()">📥 下载全部文件</button>
+                </div>
             </div>
         </div>
         
@@ -337,9 +303,8 @@
         const results = document.getElementById('results');
         const errorMsg = document.getElementById('errorMsg');
         const successMsg = document.getElementById('successMsg');
-        const fileList = document.getElementById('fileList');
-        let currentOutputDir = '';
-        let zipUrl = '';
+        const resultStats = document.getElementById('resultStats');
+        let allFiles = [];
         
         // 点击上传区域
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -421,9 +386,9 @@
             processBtn.disabled = true;
             
             try {
-                const allResults = [];
                 let totalSuccess = 0;
                 let totalFailed = 0;
+                let totalGenerated = 0;
                 
                 // 逐个处理文件
                 for (let i = 0; i < files.length; i++) {
@@ -441,26 +406,12 @@
                         const data = await response.json();
                         
                         if (data.error) {
-                            allResults.push({
-                                filename: file.name,
-                                error: data.error,
-                                success: false
-                            });
                             totalFailed++;
                         } else {
-                            allResults.push({
-                                filename: file.name,
-                                data: data,
-                                success: true
-                            });
                             totalSuccess++;
+                            totalGenerated += data.generated_count || 0;
                         }
                     } catch (error) {
-                        allResults.push({
-                            filename: file.name,
-                            error: error.message,
-                            success: false
-                        });
                         totalFailed++;
                     }
                 }
@@ -470,76 +421,29 @@
                 processBtn.disabled = false;
                 
                 if (totalSuccess > 0) {
-                    showSuccess(`处理完成！成功: ${totalSuccess}，失败: ${totalFailed}`);
+                    // 获取所有文件列表
+                    const downloadResponse = await fetch('/download_all');
+                    const downloadData = await downloadResponse.json();
+                    
+                    if (downloadData.files) {
+                        allFiles = downloadData.files;
+                    }
+                    
+                    // 显示统计信息
+                    let statsText = `成功处理 ${totalSuccess} 个文件`;
+                    if (totalFailed > 0) {
+                        statsText += `，失败 ${totalFailed} 个`;
+                    }
+                    statsText += `<br>共生成 ${totalGenerated} 个图片文件`;
+                    if (allFiles.length > 0) {
+                        statsText += `<br>所有文件已保存在同一文件夹中`;
+                    }
+                    
+                    resultStats.innerHTML = statsText;
+                    results.style.display = 'block';
+                    showSuccess('处理完成！');
                 } else {
                     showError('所有文件处理失败！');
-                }
-                
-                // 显示所有结果
-                fileList.innerHTML = '';
-                allResults.forEach((result) => {
-                    if (result.success && result.data) {
-                        // 显示原始文件信息
-                        const headerItem = document.createElement('div');
-                        headerItem.className = 'result-item';
-                        headerItem.style.background = '#e8f5e9';
-                        headerItem.innerHTML = `
-                            <div class="file-info">
-                                <div class="file-name">📁 ${result.filename}</div>
-                                <div class="file-details">
-                                    原始MD5: <span style="font-family: monospace;">${result.data.original_md5}</span>
-                                </div>
-                            </div>
-                        `;
-                        fileList.appendChild(headerItem);
-                        
-                        // 显示生成的版本
-                        result.data.output_files.forEach((file) => {
-                            const item = document.createElement('div');
-                            item.className = 'result-item';
-                            item.innerHTML = `
-                                <div class="file-info">
-                                    <div class="file-name">${file.filename}</div>
-                                    <div class="file-details">
-                                        大小: ${(file.size / 1024).toFixed(2)} KB
-                                    </div>
-                                    <div class="file-md5">MD5: ${file.md5}</div>
-                                </div>
-                                <a href="${file.url}" class="download-btn" download>下载</a>
-                            `;
-                            fileList.appendChild(item);
-                        });
-                        
-                        // 添加ZIP下载按钮
-                        if (result.data.zip_url) {
-                            const zipItem = document.createElement('div');
-                            zipItem.className = 'result-item';
-                            zipItem.style.background = '#fff3e0';
-                            zipItem.innerHTML = `
-                                <div class="file-info">
-                                    <div class="file-name">📦 ${result.filename} - 全部版本</div>
-                                </div>
-                                <a href="${result.data.zip_url}" class="download-btn" download>下载ZIP</a>
-                            `;
-                            fileList.appendChild(zipItem);
-                        }
-                    } else {
-                        // 显示错误信息
-                        const errorItem = document.createElement('div');
-                        errorItem.className = 'result-item';
-                        errorItem.style.background = '#ffebee';
-                        errorItem.innerHTML = `
-                            <div class="file-info">
-                                <div class="file-name" style="color: #c33;">❌ ${result.filename}</div>
-                                <div class="file-details" style="color: #c33;">错误: ${result.error}</div>
-                            </div>
-                        `;
-                        fileList.appendChild(errorItem);
-                    }
-                });
-                
-                if (totalSuccess > 0) {
-                    results.style.display = 'block';
                 }
                 
             } catch (error) {
@@ -549,10 +453,55 @@
             }
         }
         
-        function downloadAll(e) {
-            e.preventDefault();
-            if (zipUrl) {
-                window.location.href = zipUrl;
+        async function downloadAll() {
+            if (allFiles.length === 0) {
+                // 重新获取文件列表
+                try {
+                    const response = await fetch('/download_all');
+                    const data = await response.json();
+                    if (data.files) {
+                        allFiles = data.files;
+                    }
+                } catch (error) {
+                    showError('获取文件列表失败: ' + error.message);
+                    return;
+                }
+            }
+            
+            if (allFiles.length === 0) {
+                showError('没有可下载的文件');
+                return;
+            }
+            
+            // 批量下载所有文件
+            const downloadBtn = document.getElementById('downloadAllBtn');
+            downloadBtn.disabled = true;
+            downloadBtn.textContent = '正在下载...';
+            
+            try {
+                // 逐个下载文件
+                for (let i = 0; i < allFiles.length; i++) {
+                    const file = allFiles[i];
+                    const link = document.createElement('a');
+                    link.href = file.url;
+                    link.download = file.filename;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // 添加延迟避免浏览器阻止多个下载
+                    if (i < allFiles.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                    }
+                }
+                
+                showSuccess(`已开始下载 ${allFiles.length} 个文件`);
+            } catch (error) {
+                showError('下载失败: ' + error.message);
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.textContent = '📥 下载全部文件';
             }
         }
     </script>
