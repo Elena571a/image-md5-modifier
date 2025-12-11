@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ### 🌐 网页版（推荐）
 
 1. 双击 `启动网页版.bat` 启动Web服务器
-2. 在浏览器中访问 `http://localhost:5000`
+2. 在浏览器中访问 `http://localhost:5001`
 3. 上传图片，设置生成数量，点击"开始处理"
 4. 下载生成的图片（单个或ZIP打包）
 
