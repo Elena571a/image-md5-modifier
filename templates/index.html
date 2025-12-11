@@ -305,6 +305,7 @@
         const successMsg = document.getElementById('successMsg');
         const resultStats = document.getElementById('resultStats');
         let allFiles = [];
+        let currentSessionIds = [];  // 保存当前会话的所有session_id
         
         // 点击上传区域
         uploadArea.addEventListener('click', () => fileInput.click());
@@ -389,6 +390,7 @@
                 let totalSuccess = 0;
                 let totalFailed = 0;
                 let totalGenerated = 0;
+                currentSessionIds = [];  // 重置会话ID列表
                 
                 // 逐个处理文件
                 for (let i = 0; i < files.length; i++) {
@@ -410,6 +412,10 @@
                         } else {
                             totalSuccess++;
                             totalGenerated += data.generated_count || 0;
+                            // 保存会话ID
+                            if (data.session_id) {
+                                currentSessionIds.push(data.session_id);
+                            }
                         }
                     } catch (error) {
                         totalFailed++;
@@ -421,12 +427,18 @@
                 processBtn.disabled = false;
                 
                 if (totalSuccess > 0) {
-                    // 获取所有文件列表
-                    const downloadResponse = await fetch('/download_all');
-                    const downloadData = await downloadResponse.json();
-                    
-                    if (downloadData.files) {
-                        allFiles = downloadData.files;
+                    // 收集所有会话的文件
+                    allFiles = [];
+                    for (const sessionId of currentSessionIds) {
+                        try {
+                            const downloadResponse = await fetch(`/download_all/${sessionId}`);
+                            const downloadData = await downloadResponse.json();
+                            if (downloadData.files) {
+                                allFiles = allFiles.concat(downloadData.files);
+                            }
+                        } catch (error) {
+                            console.error('获取文件列表失败:', error);
+                        }
                     }
                     
                     // 显示统计信息
@@ -436,7 +448,7 @@
                     }
                     statsText += `<br>共生成 ${totalGenerated} 个图片文件`;
                     if (allFiles.length > 0) {
-                        statsText += `<br>所有文件已保存在同一文件夹中`;
+                        statsText += `<br>所有文件已保存在独立文件夹中`;
                     }
                     
                     resultStats.innerHTML = statsText;
@@ -456,11 +468,19 @@
         async function downloadAll() {
             if (allFiles.length === 0) {
                 // 重新获取文件列表
+                if (currentSessionIds.length === 0) {
+                    showError('没有可下载的文件，请先处理图片');
+                    return;
+                }
+                
                 try {
-                    const response = await fetch('/download_all');
-                    const data = await response.json();
-                    if (data.files) {
-                        allFiles = data.files;
+                    allFiles = [];
+                    for (const sessionId of currentSessionIds) {
+                        const response = await fetch(`/download_all/${sessionId}`);
+                        const data = await response.json();
+                        if (data.files) {
+                            allFiles = allFiles.concat(data.files);
+                        }
                     }
                 } catch (error) {
                     showError('获取文件列表失败: ' + error.message);

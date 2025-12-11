@@ -4,6 +4,7 @@
 
 import os
 import hashlib
+import uuid
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from image_md5_modifier import process_image
@@ -57,8 +58,9 @@ def upload_file():
         if num_versions < 1 or num_versions > 100:
             num_versions = 3
         
-        # 所有文件都放在统一的输出文件夹
-        output_dir = os.path.join(app.config['OUTPUT_FOLDER'], 'all')
+        # 为每个上传会话创建独立的文件夹（使用UUID）
+        session_id = str(uuid.uuid4())[:8]  # 使用UUID的前8位作为会话ID
+        output_dir = os.path.join(app.config['OUTPUT_FOLDER'], session_id)
         os.makedirs(output_dir, exist_ok=True)
         
         process_image(upload_path, output_dir, num_versions)
@@ -80,19 +82,20 @@ def upload_file():
             'success': True,
             'filename': filename,
             'generated_count': generated_count,
-            'total_files': num_versions
+            'total_files': num_versions,
+            'session_id': session_id  # 返回会话ID
         })
     
     except Exception as e:
         return jsonify({'error': f'处理失败: {str(e)}'}), 500
 
 
-@app.route('/download_all')
-def download_all():
-    """下载所有生成的文件"""
-    output_dir = os.path.join(app.config['OUTPUT_FOLDER'], 'all')
+@app.route('/download_all/<session_id>')
+def download_all(session_id):
+    """下载指定会话的所有生成文件"""
+    output_dir = os.path.join(app.config['OUTPUT_FOLDER'], session_id)
     if not os.path.exists(output_dir):
-        return jsonify({'error': '没有生成的文件'}), 404
+        return jsonify({'error': '会话不存在或已过期'}), 404
     
     # 获取所有文件
     files = []
@@ -101,7 +104,7 @@ def download_all():
         if os.path.isfile(file_path):
             files.append({
                 'filename': filename,
-                'url': f'/download_file/{filename}'
+                'url': f'/download_file/{session_id}/{filename}'
             })
     
     return jsonify({
@@ -110,10 +113,12 @@ def download_all():
     })
 
 
-@app.route('/download_file/<filename>')
-def download_file(filename):
-    """下载单个文件"""
-    directory = os.path.join(app.config['OUTPUT_FOLDER'], 'all')
+@app.route('/download_file/<session_id>/<filename>')
+def download_file(session_id, filename):
+    """下载指定会话的单个文件"""
+    directory = os.path.join(app.config['OUTPUT_FOLDER'], session_id)
+    if not os.path.exists(directory):
+        return jsonify({'error': '会话不存在或已过期'}), 404
     return send_from_directory(directory, filename)
 
 
