@@ -140,6 +140,19 @@ class ImageMD5ModifierGUI:
         )
         self.log_text.pack(fill=tk.BOTH, expand=True)
         
+        # 作者信息
+        author_frame = tk.Frame(self.root, bg="#f0f0f0", pady=5)
+        author_frame.pack(fill=tk.X, side=tk.BOTTOM)
+        
+        author_label = tk.Label(
+            author_frame,
+            text="作者：俗气至顶 | 微信：Zi_ming1020 | 欢迎反馈",
+            font=("微软雅黑", 8),
+            fg="#666",
+            bg="#f0f0f0"
+        )
+        author_label.pack()
+        
         # 保存原始输出
         self.original_stdout = sys.stdout
         self.original_stderr = sys.stderr

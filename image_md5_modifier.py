@@ -235,6 +235,7 @@ def process_image(input_path, output_dir=None, num_versions=3):
     print(f"\n完成! 成功生成 {version_count} 个版本")
     print(f"所有版本保存在: {os.path.abspath(output_dir)}")
     print(f"共 {len(generated_md5s)} 个不同的MD5值")
+    print(f"\n作者：俗气至顶 | 微信：Zi_ming1020 | 欢迎反馈")
 
 
 def main():
@@ -247,6 +248,8 @@ def main():
   python image_md5_modifier.py image.jpg -n 5     # 生成5张
   python image_md5_modifier.py image.jpg -o output_folder
   python image_md5_modifier.py image.jpg -n 10    # 生成10张
+
+作者：俗气至顶 | 微信：Zi_ming1020 | 欢迎反馈
         """
     )
     parser.add_argument('input', help='输入图片路径')
